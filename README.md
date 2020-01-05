@@ -1,5 +1,5 @@
-<b>수학으로 풀어보는</b><br>
-<p style = " font-size:1.5em;">
+<p style = " font-size:1.5em; font-weight: bold; ">수학으로 풀어보는</p>
+<p style = " font-size:2em; font-weight: bold; ">
   강화학습 원리와 알고리즘
 </p>
 

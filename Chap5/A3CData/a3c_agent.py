@@ -138,15 +138,6 @@ class A3Cworker(threading.Thread):
         return td_targets
 
 
-    ## convert (list of np.array) to np.array
-    def unpack_batch(self, batch):
-        unpack = batch[0]
-        for idx in range(len(batch) - 1):
-            unpack = np.append(unpack, batch[idx + 1], axis=0)
-
-        return unpack
-
-
     # train each worker
     def run(self):
 
@@ -158,7 +149,7 @@ class A3Cworker(threading.Thread):
         while global_episode_count <= int(self.max_episode_num):
 
             # initialize batch
-            batch_state, batch_action, batch_reward = [], [], []
+            states, actions, rewards = [], [], []
 
             # reset episode
             step, episode_reward, done = 0, 0, False
@@ -176,38 +167,18 @@ class A3Cworker(threading.Thread):
                 # observe reward, new_state, shape of output of gym (state_dim,)
                 next_state, reward, done, _ = self.env.step(action)
 
-                # change shape (state_dim,) -> (1, state_dim), same to action, next_state
-                state = np.reshape(state, [1, self.state_dim])
-                reward = np.reshape(reward, [1, 1])
-                action = np.reshape(action, [1, self.action_dim])
-
                 # append to the batch
-                batch_state.append(state)
-                batch_action.append(action)
-                batch_reward.append((reward+8)/8) # <-- normalization
-                #batch_reward.append(reward)
-
-                # update state and step
-                state = next_state
-                step += 1
-                episode_reward += reward[0]
+                states.append(state)
+                actions.append(action)
+                rewards.append((reward+8)/8) # <-- normalization
 
                 # if batch is full or episode ends, start to train global on batch
-                if len(batch_state) == self.t_MAX or done:
-
-                    # extract states, actions, rewards from batch
-                    states = self.unpack_batch(batch_state)
-                    actions = self.unpack_batch(batch_action)
-                    rewards = self.unpack_batch(batch_reward)
-
-                    # clear the batch
-                    batch_state, batch_action, batch_reward = [], [], []
+                if len(states) == self.t_MAX or done:
 
                     # compute n-step TD target and advantage prediction with global network
-                    next_state = np.reshape(next_state, [1, self.state_dim])
-                    next_v_value = self.global_critic.model.predict(next_state)
+                    next_v_value = self.global_critic.predict([next_state])
                     n_step_td_targets = self.n_step_td_target(rewards, next_v_value, done)
-                    v_values = self.global_critic.model.predict(states)
+                    v_values = self.global_critic.predict(states)
                     advantages = n_step_td_targets - v_values
 
 
@@ -221,20 +192,27 @@ class A3Cworker(threading.Thread):
                     self.worker_actor.model.set_weights(self.global_actor.model.get_weights())
                     self.worker_critic.model.set_weights(self.global_critic.model.get_weights())
 
+                    # clear the batch
+                    states, actions, rewards = [], [], []
+
                     # update global step
                     global_step += 1
 
-                if done:
-                    # update global episode count
-                    global_episode_count += 1
-                    ## display rewards every episode
-                    print('Worker name:', self.worker_name, ', Episode: ', global_episode_count,
-                          ', Step: ', step, ', Reward: ', episode_reward)
+                # update state and step
+                state = next_state
+                step += 1
+                episode_reward += reward
 
-                    global_episode_reward.append(episode_reward)
+            # update global episode count
+            global_episode_count += 1
+            ## display rewards every episode
+            print('Worker name:', self.worker_name, ', Episode: ', global_episode_count,
+                  ', Step: ', step, ', Reward: ', episode_reward)
 
-                    ## save weights every episode
-                    if global_episode_count % 10 == 0:
-                        self.global_actor.save_weights("./save_weights/pendulum_actor.h5")
-                        self.global_critic.save_weights("./save_weights/pendulum_critic.h5")
+            global_episode_reward.append(episode_reward)
+
+            ## save weights every episode
+            if global_episode_count % 10 == 0:
+                self.global_actor.save_weights("./save_weights/pendulum_actor.h5")
+                self.global_critic.save_weights("./save_weights/pendulum_critic.h5")
 

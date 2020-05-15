@@ -89,10 +89,10 @@ class Actor(object):
     ## train the actor network
     def train(self, log_old_policy_pdf, states, actions, advantages):
         self.sess.run(self.actor_optimizer, feed_dict={
-            self.log_old_policy_pdf: log_old_policy_pdf,
+            self.log_old_policy_pdf: np.expand_dims(log_old_policy_pdf, axis=-1),
             self.states: states,
             self.actions: actions,
-            self.advantages: advantages
+            self.advantages: np.expand_dims(advantages, axis=-1)
         })
 
 

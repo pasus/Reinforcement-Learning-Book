@@ -1,5 +1,6 @@
 # PPO with GAE Critic
 
+import numpy as np
 from keras.models import Model
 from keras.layers import Dense, Input
 from keras.optimizers import Adam
@@ -33,7 +34,11 @@ class Critic(object):
 
     ## single gradient update on a single batch data
     def train_on_batch(self, states, td_targets):
-        return self.model.train_on_batch(states, td_targets)
+        return self.model.train_on_batch(np.array(states), np.array(td_targets))
+
+    # critic prediction
+    def predict(self, states):
+        return np.squeeze(self.model.predict(np.array(states)))
 
 
     ## save critic weights

@@ -63,21 +63,12 @@ class PPOagent(object):
         return gae, n_step_targets
 
 
-    ## convert (list of np.array) to np.array
-    def unpack_batch(self, batch):
-        unpack = batch[0]
-        for idx in range(len(batch)-1):
-            unpack = np.append(unpack, batch[idx+1], axis=0)
-
-        return unpack
-
-
     ## train the agent
     def train(self, max_episode_num):
 
         # initialize batch
-        batch_state, batch_action, batch_reward = [], [], []
-        batch_log_old_policy_pdf = []
+        states, actions, rewards = [], [], []
+        log_old_policy_pdfs = []
 
         for ep in range(int(max_episode_num)):
 
@@ -100,53 +91,35 @@ class PPOagent(object):
                 log_old_policy_pdf = np.sum(log_old_policy_pdf)
                 # observe reward, new_state, shape of output of gym (state_dim,)
                 next_state, reward, done, _ = self.env.step(action)
-                # change shape (state_dim,) -> (1, state_dim), same to mu, std, action
-                state = np.reshape(state, [1, self.state_dim])
-                action = np.reshape(action, [1, self.action_dim])
-                reward = np.reshape(reward, [1, 1])
-                log_old_policy_pdf = np.reshape(log_old_policy_pdf, [1, 1])
 
                 # append to the batch
-                batch_state.append(state)
-                batch_action.append(action)
-                batch_reward.append((reward+8)/8) # <-- normalization
-                #batch_reward.append(reward)
-                batch_log_old_policy_pdf.append(log_old_policy_pdf)
+                states.append(state)
+                actions.append(action)
+                rewards.append((reward+8)/8) # <-- normalization
+                log_old_policy_pdfs.append(log_old_policy_pdf)
 
-                # continue until batch becomes full
-                if len(batch_state) < self.BATCH_SIZE:
-                    # update current state
-                    state = next_state
-                    episode_reward += reward[0]
-                    time += 1
-                    continue
+                # if batch is full, start to train networks on batch
+                if len(states) == self.BATCH_SIZE:
 
-                # extract batched states, actions, td_targets, advantages
-                states = self.unpack_batch(batch_state)
-                actions = self.unpack_batch(batch_action)
-                rewards = self.unpack_batch(batch_reward)
-                log_old_policy_pdfs = self.unpack_batch(batch_log_old_policy_pdf)
+                    # compute gae and TD targets
+                    next_v_value = self.critic.predict([next_state])
+                    v_values = self.critic.predict(states)
+                    gaes, y_i = self.gae_target(rewards, v_values, next_v_value, done)
 
-                # clear the batch
-                batch_state, batch_action, batch_reward = [], [], []
-                batch_log_old_policy_pdf = []
+                    # update the networks
+                    for _ in range(self.EPOCHS):
 
-                # compute gae and TD targets
-                next_state = np.reshape(next_state, [1, self.state_dim])
-                next_v_value = self.critic.model.predict(next_state)
-                v_values = self.critic.model.predict(states)
-                gaes, y_i = self.gae_target(rewards, v_values, next_v_value, done)
+                        # train
+                        self.actor.train(log_old_policy_pdfs, states, actions, gaes)
+                        self.critic.train_on_batch(states, y_i)
 
-                # update the networks
-                for _ in range(self.EPOCHS):
-
-                    # train
-                    self.actor.train(log_old_policy_pdfs, states, actions, gaes)
-                    self.critic.train_on_batch(states, y_i)
+                    # clear the batch
+                    states, actions, rewards = [], [], []
+                    log_old_policy_pdfs = []
 
                 # update current state
                 state = next_state
-                episode_reward += reward[0]
+                episode_reward += reward
                 time += 1
 
             ## display rewards every episode

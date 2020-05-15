@@ -51,22 +51,13 @@ class A2Cagent(object):
         return advantage, y_k
 
 
-    ## convert (list of np.array) to np.array
-    def unpack_batch(self, batch):
-        unpack = batch[0]
-        for idx in range(len(batch)-1):
-            unpack = np.append(unpack, batch[idx+1], axis=0)
-
-        return unpack
-
-
     ## train the agent
     def train(self, max_episode_num):
 
         for ep in range(int(max_episode_num)):
 
             # initialize batch
-            batch_state, batch_action, batch_td_target, batch_advantage = [], [], [], []
+            states, actions, td_targets, advantages = [], [], [], []
             # reset episode
             time, episode_reward, done = 0, 0, False
             # reset the environment and observe the first state
@@ -82,48 +73,32 @@ class A2Cagent(object):
                 action = np.clip(action, -self.action_bound, self.action_bound)
                 # observe reward, new_state, shape of output of gym (state_dim,)
                 next_state, reward, done, _ = self.env.step(action)
-                # change shape (state_dim,) -> (1, state_dim), same to action, next_state
-                state = np.reshape(state, [1, self.state_dim])
-                next_state = np.reshape(next_state, [1, self.state_dim])
-                action = np.reshape(action, [1, self.action_dim])
-                reward = np.reshape(reward, [1, 1])
                 # compute next v_value
-                v_value = self.critic.model.predict(state)
-                next_v_value = self.critic.model.predict(next_state)
+                v_value = self.critic.predict(state)
+                next_v_value = self.critic.predict(next_state)
                 # compute advantage and TD target
                 train_reward = (reward+8)/8  # <-- normalization
                 advantage, y_i = self.advantage_td_target(train_reward, v_value, next_v_value, done)
 
                 # append to the batch
-                batch_state.append(state)
-                batch_action.append(action)
-                batch_td_target.append(y_i)
-                batch_advantage.append(advantage)
-
-                # continue until batch becomes full
-                if len(batch_state) < self.BATCH_SIZE:
-                    # update current state
-                    state = next_state[0]
-                    episode_reward += reward[0]
-                    time += 1
-                    continue
+                states.append(state)
+                actions.append(action)
+                td_targets.append(y_i)
+                advantages.append(advantage)
 
                 # if batch is full, start to train networks on batch
-                # extract batched states, actions, td_targets, advantages
-                states = self.unpack_batch(batch_state)
-                actions = self.unpack_batch(batch_action)
-                td_targets = self.unpack_batch(batch_td_target)
-                advantages = self.unpack_batch(batch_advantage)
-                # clear the batch
-                batch_state, batch_action, batch_td_target, batch_advantage = [], [], [], []
-                # train critic
-                self.critic.train_on_batch(states, td_targets)
-                # train actor
-                self.actor.train(states, actions, advantages)
+                if len(states) == self.BATCH_SIZE:
+                    # train critic
+                    self.critic.train_on_batch(states, td_targets)
+                    # train actor
+                    self.actor.train(states, actions, advantages)
+
+                    # clear the batch
+                    states, actions, td_targets, advantages = [], [], [], []
 
                 # update current state
-                state = next_state[0]
-                episode_reward += reward[0]
+                state = next_state
+                episode_reward += reward
                 time += 1
 
 

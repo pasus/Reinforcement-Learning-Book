@@ -66,7 +66,7 @@ class Actor(object):
         # type of action in env is numpy array
         # np.reshape(state, [1, self.state_dim]) : shape (state_dim,) -> shape (1, state_dim)
         # why [0]?  shape (1, action_dim) -> (action_dim,)
-        mu_a, std_a = self.model.predict(np.reshape(state, [1, self.state_dim]))
+        mu_a, std_a = self.model.predict(np.array([state]))
         mu_a = mu_a[0]
         std_a = std_a[0]
         std_a = np.clip(std_a, self.std_bound[0], self.std_bound[1])
@@ -84,7 +84,7 @@ class Actor(object):
         self.sess.run(self.actor_optimizer, feed_dict={
             self.states: states,
             self.actions: actions,
-            self.advantages: advantages
+            self.advantages: np.expand_dims(advantages, axis=-1)
         })
 
 

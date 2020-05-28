@@ -1,5 +1,6 @@
 # A3C Critic
 
+import numpy as np
 from keras.models import Model
 from keras.layers import Dense, Input
 
@@ -58,7 +59,7 @@ class Worker_Critic(object):
         self.model, self.phi, self.states = build_network(self.state_dim)
 
         # placeholder
-        self.td_targets = tf.placeholder(tf.float32, [None, 1])
+        self.td_targets = tf.placeholder(tf.float32, [None])
 
         # loss function and its gradient
         v_values = self.model.output
@@ -78,3 +79,7 @@ class Worker_Critic(object):
             self.states: states,
             self.td_targets: td_targets
         })
+
+    # critic prediction
+    def predict(self, states):
+        return np.squeeze(self.model.predict(np.array(states)))

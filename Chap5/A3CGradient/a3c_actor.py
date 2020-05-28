@@ -127,5 +127,5 @@ class Worker_Actor(object):
         self.sess.run(self.actor_optimizer, feed_dict={
             self.states: states,
             self.actions: actions,
-            self.advantages: advantages
+            self.advantages: np.expand_dims(advantages, axis=-1)
         })

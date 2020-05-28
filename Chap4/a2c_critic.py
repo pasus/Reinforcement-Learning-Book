@@ -1,5 +1,6 @@
 # A2C Critic
 
+import numpy as np
 from keras.models import Model
 from keras.layers import Dense, Input
 from keras.optimizers import Adam
@@ -33,7 +34,11 @@ class Critic(object):
 
     ## single gradient update on a single batch data
     def train_on_batch(self, states, td_targets):
-        return self.model.train_on_batch(states, td_targets)
+        return self.model.train_on_batch(np.array(states), np.array(td_targets))
+
+    ## critic prediction
+    def predict(self, state):
+        return self.model.predict(np.array([state]))[0][0]
 
 
     ## save critic weights
